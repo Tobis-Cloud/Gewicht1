@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>Gewichts-Tracker</title>
+  
+  <!-- Apple Web App Meta Tags & App Icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gewicht">
+  <link rel="apple-touch-icon" href="Gewicht.jpeg">
+  
+  <!-- Favicon / Desktop Icon -->
+  <link rel="icon" type="image/jpeg" href="Gewicht.jpeg">
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* 1. RESET & SYSTEM TOKENS */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-base: #050505;
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.4);
+      
+      /* Neon-Akzentfarben (Pastell-Neon, weich) */
+      --color-purple: #b666ff;
+      --color-blue: #3b82f6;
+      --color-orange: #ff9f0a;
+      --color-green: #30d158;
+      --color-red: #ff3b30;
+      
+      /* Glassmorphismus */
+      --glass-bg: rgba(8, 8, 8, 0.45);
+      --glass-border: rgba(255, 255, 255, 0.05);
+      --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      --blur: blur(30px);
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      overflow: hidden;
+      height: 100vh;
+      height: -webkit-fill-available; /* iOS Viewport Fix */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    input, textarea, select {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    /* Ambient Glow Hintergrund-Aura */
+    .bg-aura {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at center, rgba(182, 102, 255, 0.06) 0%, rgba(0, 0, 0, 0) 70%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* App Layout Container */
+    .app-container {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 20px;
+      padding-top: calc(12px + env(safe-area-inset-top, 24px));
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 24px));
+      z-index: 2;
+      overflow: hidden;
+    }
+
+    @media (min-width: 481px) {
+      .app-container {
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        border-radius: 40px;
+        background: rgba(0, 0, 0, 0.85);
+        box-shadow: 0 20px 80px rgba(0, 0, 0, 0.9);
+        height: 90vh;
+        max-height: 850px;
+      }
+    }
+
+    /* 2. HEADER */
+    .title-container {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 200;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      text-shadow: 0 0 8px rgba(182, 102, 255, 0.5), 0 0 25px rgba(182, 102, 255, 0.2);
+    }
+
+    /* Hamburger-Button (Drei Striche -> X Transition) */
+    .hamburger-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      width: 24px;
+      height: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      z-index: 1001;
+      padding: 0;
+    }
+
+    .hamburger-btn span {
+      display: block;
+      width: 100%;
+      height: 2px;
+      background-color: var(--text-primary);
+      border-radius: 2px;
+      transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
+    }
+
+    .hamburger-btn:hover span {
+      background-color: var(--color-purple);
+      box-shadow: 0 0 8px rgba(182, 102, 255, 0.6);
+    }
+
+    .hamburger-btn.open .bar1 {
+      transform: translateY(8px) rotate(45deg);
+    }
+
+    .hamburger-btn.open .bar2 {
+      opacity: 0;
+    }
+
+    .hamburger-btn.open .bar3 {
+      transform: translateY(-8px) rotate(-45deg);
+    }
+
+    /* 3. KPI CARDS GRID */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .kpi-card {
+      background: var(--glass-bg);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 14px 10px;
+      box-shadow: var(--glass-shadow);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(182, 102, 255, 0.15);
+    }
+
+    .kpi-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .kpi-value {
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      transition: color 0.3s ease, text-shadow 0.3s ease;
+    }
+
+    .kpi-value .unit {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-left: 1px;
+    }
+
+    .kpi-sub {
+      font-size: 9px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    /* 4. CHART CARD & CONTAINER */
+    .chart-card {
+      flex: 1;
+      background: var(--glass-bg);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--glass-border);
+      border-radius: 28px;
+      padding: 20px;
+      box-shadow: var(--glass-shadow);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Filter-Segment */
+    .filter-segment {
+      display: flex;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 14px;
+      padding: 3px;
+      margin-bottom: 16px;
+      gap: 4px;
+    }
+
+    .filter-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 8px 4px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+      font-family: inherit;
+    }
+
+    .filter-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .filter-btn.active {
+      background: rgba(182, 102, 255, 0.1);
+      color: var(--color-purple);
+      border: 1px solid rgba(182, 102, 255, 0.25);
+      box-shadow: 0 0 10px rgba(182, 102, 255, 0.2);
+      text-shadow: 0 0 8px rgba(182, 102, 255, 0.4);
+    }
+
+    /* Zeitraum-Navigation */
+    .period-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 10px;
+    }
+
+    .btn-nav {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .btn-nav:hover {
+      border-color: rgba(182, 102, 255, 0.5);
+      background: rgba(182, 102, 255, 0.05);
+      box-shadow: 0 0 8px rgba(182, 102, 255, 0.2);
+    }
+
+    .period-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--color-purple);
+      text-shadow: 0 0 6px rgba(182, 102, 255, 0.3);
+      text-align: center;
+      flex: 1;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .chart-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      min-height: 200px;
+    }
+
+    /* Empty State Overlay im Chart-Container */
+    .empty-state {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 5;
+      background: rgba(8, 8, 8, 0.7);
+      border-radius: 20px;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      opacity: 0;
+    }
+
+    .empty-state.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .empty-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 0 10px rgba(182, 102, 255, 0.4));
+    }
+
+    .empty-state p {
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .empty-state .empty-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      max-width: 260px;
+      line-height: 1.4;
+    }
+
+    /* 5. BACKDROP & SLIDE-OVER */
+    .backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .slide-over {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 85%;
+      max-width: 380px;
+      height: 100vh;
+      background: rgba(10, 10, 10, 0.85);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: -10px 0 40px rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 20px;
+      padding-top: calc(24px + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .slide-over.open {
+      transform: translateX(0);
+    }
+
+    .slide-over-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .slide-over-header h2 {
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px rgba(182, 102, 255, 0.4);
+    }
+
+    .slide-over-content {
+      flex: 1;
+      overflow-y: auto;
+      overscroll-behavior: none;
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide-over-content::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .slide-over-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .slide-over-content::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+    }
+
+    /* 6. SECTIONS, FORMS & INPUTS */
+    .section {
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      color: var(--text-primary);
+      padding: 12px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.3s ease;
+      width: 100%;
+      -webkit-appearance: none;
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.2s ease;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
+    }
+
+    .date-input-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .btn-date-adjust {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      border-radius: 12px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+      font-family: inherit;
+    }
+
+    .btn-date-adjust:hover {
+      border-color: rgba(182, 102, 255, 0.5);
+      background: rgba(182, 102, 255, 0.05);
+      box-shadow: 0 0 10px rgba(182, 102, 255, 0.2);
+    }
+
+    .form-group input:focus {
+      border-color: rgba(182, 102, 255, 0.6);
+      box-shadow: 0 0 12px rgba(182, 102, 255, 0.25);
+      background: rgba(182, 102, 255, 0.02);
+    }
+
+    .btn {
+      display: inline-block;
+      width: 100%;
+      text-align: center;
+      background: transparent;
+      border: 1px solid rgba(182, 102, 255, 0.5);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+      background: rgba(182, 102, 255, 0.1);
+      box-shadow: 0 0 15px rgba(182, 102, 255, 0.2);
+    }
+
+    /* Breathing Glow Keyframes für Speichern-Knopf */
+    @keyframes breathingGlow {
+      0% {
+        box-shadow: 0 0 8px rgba(182, 102, 255, 0.2);
+        border-color: rgba(182, 102, 255, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 18px rgba(182, 102, 255, 0.5), 0 0 4px rgba(182, 102, 255, 0.2);
+        border-color: rgba(182, 102, 255, 0.85);
+      }
+      100% {
+        box-shadow: 0 0 8px rgba(182, 102, 255, 0.2);
+        border-color: rgba(182, 102, 255, 0.4);
+      }
+    }
+
+    .btn-pulse {
+      animation: breathingGlow 2.5s infinite ease-in-out;
+    }
+
+    /* 7. VERLAUFS-LISTE */
+    .history-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 180px;
+    }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      flex: 1;
+      padding-right: 2px;
+      overscroll-behavior: none;
+    }
+
+    .history-list::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .history-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+    }
+
+    .history-item {
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.3s ease, border-color 0.3s ease;
+    }
+
+    .history-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .history-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .history-date {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .history-weight {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-purple);
+      text-shadow: 0 0 8px rgba(182, 102, 255, 0.2);
+    }
+
+    .btn-delete {
+      background: transparent;
+      border: none;
+      color: var(--color-red);
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-delete:hover {
+      background: rgba(255, 59, 48, 0.1);
+      text-shadow: 0 0 8px rgba(255, 59, 48, 0.4);
+    }
+
+    /* 8. MINI BACKUP CONTAINER (DEZENT) */
+    .backup-section {
+      border-top: 1px dashed rgba(255, 255, 255, 0.06) !important;
+      padding-top: 14px !important;
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+    }
+
+    .backup-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .btn-mini {
+      flex: 1;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-secondary);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-mini:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+<body>
+  <!-- Ambient Glow Background -->
+  <div class="bg-aura"></div>
+  
+  <div class="app-container">
+    <!-- Main Screen Header -->
+    <header class="header">
+      <div class="title-container">
+        <h1>Gewicht</h1>
+      </div>
+      <button class="hamburger-btn" id="menuToggle" aria-label="Menü öffnen">
+        <span class="bar1"></span>
+        <span class="bar2"></span>
+        <span class="bar3"></span>
+      </button>
+    </header>
+
+    <!-- KPI Grid -->
+    <div class="kpi-grid">
+      <div class="kpi-card" id="kpiCurrent">
+        <div class="kpi-label">Aktuell</div>
+        <div class="kpi-value">--<span class="unit">kg</span></div>
+        <div class="kpi-sub" id="kpiCurrentDate">Keine Daten</div>
+      </div>
+      <div class="kpi-card" id="kpiDiff">
+        <div class="kpi-label">Differenz</div>
+        <div class="kpi-value">--<span class="unit">kg</span></div>
+        <div class="kpi-sub" id="kpiDiffText">Keine Daten</div>
+      </div>
+      <div class="kpi-card" id="kpiGoal">
+        <div class="kpi-label">Bis Ziel</div>
+        <div class="kpi-value">--<span class="unit">kg</span></div>
+        <div class="kpi-sub" id="kpiGoalText">Ziel: -- kg</div>
+      </div>
+    </div>
+
+    <!-- Chart Card -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Gewichtsverlauf</div>
+      </div>
+      <div class="filter-segment" id="filterSegment">
+        <button class="filter-btn" data-days="7">Woche</button>
+        <button class="filter-btn" data-days="30">Monat</button>
+        <button class="filter-btn" data-days="365">Jahr</button>
+        <button class="filter-btn active" data-days="all">Alles</button>
+      </div>
+      <div class="period-nav" id="periodNav" style="display: none;">
+        <button type="button" class="btn-nav" id="btnPrevPeriod" title="Vorheriger Zeitraum">&larr;</button>
+        <span class="period-label" id="periodLabel"></span>
+        <button type="button" class="btn-nav" id="btnNextPeriod" title="Nächster Zeitraum">&rarr;</button>
+      </div>
+      <div class="chart-container">
+        <!-- Empty State Overlay -->
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">📊</div>
+          <p>Keine Gewichtsdaten vorhanden</p>
+          <p class="empty-sub">Tippe oben rechts auf das Menü, um dein Gewicht und Zielgewicht einzutragen.</p>
+        </div>
+        <canvas id="weightChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backdrop Mask -->
+  <div class="backdrop" id="backdrop"></div>
+
+  <!-- Slide-Over Sidebar -->
+  <div class="slide-over" id="slideOver">
+    <div class="slide-over-header">
+      <h2>Einstellungen</h2>
+      <!-- The close action is fully handled by clicking backdrop or toggling hamburger -->
+    </div>
+    
+    <div class="slide-over-content">
+      <!-- Gewicht eintragen -->
+      <section class="section">
+        <h3 class="section-title">Eintrag Hinzufügen</h3>
+        <form id="weightForm">
+          <div class="form-group">
+            <label for="inputDate">Datum</label>
+            <div class="date-input-container">
+              <button type="button" class="btn-date-adjust" id="btnPrevDay" title="Vorheriger Tag">&larr;</button>
+              <input type="date" id="inputDate" required>
+              <button type="button" class="btn-date-adjust" id="btnNextDay" title="Nächster Tag">&rarr;</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="inputWeight">Gewicht (kg)</label>
+            <input type="number" id="inputWeight" step="0.1" min="1" max="500" placeholder="z. B. 75.5" required>
+          </div>
+          <button type="submit" class="btn btn-pulse">Speichern</button>
+        </form>
+      </section>
+
+      <!-- Zielgewicht einstellen -->
+      <section class="section">
+        <h3 class="section-title">Zielgewicht</h3>
+        <div class="form-group">
+          <label for="inputGoal">Zielgewicht (kg)</label>
+          <input type="number" id="inputGoal" step="0.1" min="1" max="500" placeholder="z. B. 70.0">
+        </div>
+      </section>
+
+
+      <!-- Verlaufsliste -->
+      <section class="section history-section">
+        <h3 class="section-title">Einträge</h3>
+        <div class="history-list" id="historyList">
+          <!-- Wird dynamisch befüllt -->
+        </div>
+      </section>
+
+      <!-- Dezente Export/Import Knöpfe -->
+      <section class="section backup-section">
+        <div class="backup-row">
+          <button class="btn-mini" id="btnExport" title="Daten als JSON exportieren">Export</button>
+          <button class="btn-mini" id="btnImport" title="Daten aus JSON importieren">Import</button>
+        </div>
+        <input type="file" id="fileImport" accept=".json" style="display: none;">
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // Globaler Font-Family Standard für Chart.js
+    Chart.defaults.font.family = "'Outfit', -apple-system, BlinkMacSystemFont, sans-serif";
+    Chart.defaults.color = 'rgba(255, 255, 255, 0.4)';
+
+    // 1. ZUSTANDS-DATEN & INITIALISIERUNG
+    let entries = [];
+    try {
+      entries = JSON.parse(localStorage.getItem('weight_tracker_data')) || [];
+    } catch (e) {
+      console.error("Fehler beim Laden der lokalen Gewichtsdaten:", e);
+      entries = [];
+    }
+    let targetWeight = localStorage.getItem('weight_tracker_target') ? parseFloat(localStorage.getItem('weight_tracker_target')) : null;
+    let chartInstance = null;
+    let activeFilter = 'all'; // '7', '30', '365' oder 'all'
+    let currentViewDate = new Date(); // Referenzdatum für die Navigation
+
+    // Hilfsfunktion: Parsen des Datums im lokalen Kontext (verhindert Zeitzonen-Verschiebung um einen Tag)
+    function parseLocalDate(dateStr) {
+      const parts = dateStr.split('-');
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+
+    // Hilfsfunktion: Formatierung eines Date-Objekts zu DD.MM.YYYY
+    function formatDateString(dateObj) {
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `${day}.${month}.${year}`;
+    }
+
+    // Setzt das Standarddatum (heute) und das letzte eingetragene Gewicht im Formular voraus
+    function setFormDefaults() {
+      // 1. Datum auf heute setzen
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      document.getElementById('inputDate').value = `${year}-${month}-${day}`;
+
+      // 2. Gewicht auf das letzte eingetragene Gewicht setzen
+      if (entries.length > 0) {
+        const sorted = [...entries].sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
+        const latestEntry = sorted[sorted.length - 1];
+        document.getElementById('inputWeight').value = latestEntry.weight.toFixed(1);
+      } else {
+        document.getElementById('inputWeight').value = '';
+      }
+    }
+
+    // Hilfsfunktion: Berechnet die Kalenderwoche nach ISO 8601
+    function getWeekNumber(d) {
+      d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+      const weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+      return weekNo;
+    }
+
+    // Berechnet die genauen Datumsschranken (Start/Ende) für den aktiven Filter und aktualisiert das Label
+    function updatePeriodRange() {
+      const oneDay = 24 * 60 * 60 * 1000;
+      let tStart = 0;
+      let tEnd = 0;
+      let label = "";
+
+      const periodNav = document.getElementById('periodNav');
+      const periodLabel = document.getElementById('periodLabel');
+
+      if (activeFilter === 'all') {
+        periodNav.style.display = 'none';
+        if (entries.length > 0) {
+          tStart = parseLocalDate(entries[0].date).getTime();
+          const tLast = parseLocalDate(entries[entries.length - 1].date).getTime();
+          tEnd = tStart === tLast ? tStart + oneDay : tLast;
+        } else {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          tStart = today.getTime() - 7 * oneDay;
+          tEnd = today.getTime();
+        }
+      } else {
+        periodNav.style.display = 'flex';
+
+        if (activeFilter === '7') {
+          // Woche (Kalenderwoche: Montag bis Sonntag)
+          const dayOfWeek = currentViewDate.getDay();
+          const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+          
+          const monday = new Date(currentViewDate);
+          monday.setDate(monday.getDate() + diffToMonday);
+          monday.setHours(0, 0, 0, 0);
+          
+          const sunday = new Date(monday);
+          sunday.setDate(sunday.getDate() + 6);
+          sunday.setHours(23, 59, 59, 999);
+          
+          tStart = monday.getTime();
+          tEnd = sunday.getTime();
+
+          const startStr = `${monday.getDate()}.${String(monday.getMonth() + 1).padStart(2, '0')}.`;
+          const endStr = `${sunday.getDate()}.${String(sunday.getMonth() + 1).padStart(2, '0')}.`;
+          label = `KW ${getWeekNumber(monday)} (${startStr} - ${endStr})`;
+        } else if (activeFilter === '30') {
+          // Monat (1. bis Letzter des Monats)
+          const firstDay = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth(), 1, 0, 0, 0, 0);
+          const lastDay = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth() + 1, 0, 23, 59, 59, 999);
+          
+          tStart = firstDay.getTime();
+          tEnd = lastDay.getTime();
+
+          const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+          label = `${monthNames[firstDay.getMonth()]} ${firstDay.getFullYear()}`;
+        } else if (activeFilter === '365') {
+          // Jahr (1. Januar bis 31. Dezember)
+          const firstDay = new Date(currentViewDate.getFullYear(), 0, 1, 0, 0, 0, 0);
+          const lastDay = new Date(currentViewDate.getFullYear(), 11, 31, 23, 59, 59, 999);
+          
+          tStart = firstDay.getTime();
+          tEnd = lastDay.getTime();
+
+          label = `${firstDay.getFullYear()}`;
+        }
+        
+        periodLabel.innerText = label;
+      }
+
+      return { tStart, tEnd };
+    }
+
+    // 2. RENDERING-FUNKTIONEN
+
+    // Aktualisiert die KPI-Karten
+    function updateKPIs() {
+      const currentValNode = document.querySelector('#kpiCurrent .kpi-value');
+      const currentDateNode = document.getElementById('kpiCurrentDate');
+      const diffValNode = document.querySelector('#kpiDiff .kpi-value');
+      const diffTextNode = document.getElementById('kpiDiffText');
+      const goalValNode = document.querySelector('#kpiGoal .kpi-value');
+      const goalTextNode = document.getElementById('kpiGoalText');
+
+      if (entries.length === 0) {
+        currentValNode.innerHTML = `--<span class="unit">kg</span>`;
+        currentValNode.style.color = 'var(--text-primary)';
+        currentValNode.style.textShadow = 'none';
+        currentDateNode.innerText = 'Keine Daten';
+
+        diffValNode.innerHTML = `--<span class="unit">kg</span>`;
+        diffValNode.style.color = 'var(--text-primary)';
+        diffValNode.style.textShadow = 'none';
+        diffTextNode.innerText = 'Keine Daten';
+
+        goalValNode.innerHTML = `--<span class="unit">kg</span>`;
+        goalValNode.style.color = 'var(--text-primary)';
+        goalValNode.style.textShadow = 'none';
+        goalTextNode.innerText = targetWeight ? `Ziel: ${targetWeight.toFixed(1)} kg` : 'Ziel: -- kg';
+        return;
+      }
+
+      // Chronologische Sortierung
+      entries.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
+
+      const firstEntry = entries[0];
+      const currentEntry = entries[entries.length - 1];
+
+      // Aktuelles Gewicht
+      currentValNode.innerHTML = `${currentEntry.weight.toFixed(1)}<span class="unit">kg</span>`;
+      currentValNode.style.color = 'var(--text-primary)';
+      currentValNode.style.textShadow = '0 0 10px rgba(182, 102, 255, 0.4)';
+      currentDateNode.innerText = `Stand: ${formatDateString(parseLocalDate(currentEntry.date))}`;
+
+      // Differenz (Erster Eintrag vs. Aktueller Eintrag)
+      const diff = currentEntry.weight - firstEntry.weight;
+      if (diff === 0) {
+        diffValNode.innerHTML = `0.0<span class="unit">kg</span>`;
+        diffValNode.style.color = 'var(--text-primary)';
+        diffValNode.style.textShadow = 'none';
+        diffTextNode.innerText = 'Stabil';
+      } else if (diff < 0) {
+        diffValNode.innerHTML = `${diff.toFixed(1)}<span class="unit">kg</span>`;
+        diffValNode.style.color = 'var(--color-green)';
+        diffValNode.style.textShadow = '0 0 10px rgba(48, 209, 88, 0.4)';
+        diffTextNode.innerText = 'Abnahme';
+      } else {
+        diffValNode.innerHTML = `+${diff.toFixed(1)}<span class="unit">kg</span>`;
+        diffValNode.style.color = 'var(--color-orange)';
+        diffValNode.style.textShadow = '0 0 10px rgba(255, 159, 10, 0.4)';
+        diffTextNode.innerText = 'Zunahme';
+      }
+
+      // Bis zum Zielgewicht
+      if (targetWeight === null) {
+        goalValNode.innerHTML = `--<span class="unit">kg</span>`;
+        goalValNode.style.color = 'var(--text-secondary)';
+        goalValNode.style.textShadow = 'none';
+        goalTextNode.innerText = 'Ziel einstellen';
+      } else {
+        const toGoal = currentEntry.weight - targetWeight;
+        goalTextNode.innerText = `Ziel: ${targetWeight.toFixed(1)} kg`;
+        
+        if (toGoal <= 0) {
+          goalValNode.innerHTML = `Erreicht`;
+          goalValNode.style.color = 'var(--color-green)';
+          goalValNode.style.textShadow = '0 0 10px rgba(48, 209, 88, 0.4)';
+        } else {
+          goalValNode.innerHTML = `${toGoal.toFixed(1)}<span class="unit">kg</span>`;
+          goalValNode.style.color = 'var(--color-blue)';
+          goalValNode.style.textShadow = '0 0 10px rgba(59, 130, 246, 0.4)';
+        }
+      }
+    }
+
+    // Aktualisiert die Eintragsliste im Slide-Over
+    function updateHistoryList() {
+      const container = document.getElementById('historyList');
+      container.innerHTML = '';
+
+      if (entries.length === 0) {
+        container.innerHTML = '<div style="font-size: 11px; color: var(--text-secondary); text-align: center; padding: 20px 0;">Keine Einträge vorhanden.</div>';
+        return;
+      }
+
+      // Sortierung nach Datum absteigend (Neueste zuerst)
+      const sortedDesc = [...entries].sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
+
+      sortedDesc.forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        
+        const dateObj = parseLocalDate(entry.date);
+        
+        item.innerHTML = `
+          <div class="history-info">
+            <span class="history-date">${formatDateString(dateObj)}</span>
+            <span class="history-weight">${entry.weight.toFixed(1)} kg</span>
+          </div>
+          <button class="btn-delete" data-date="${entry.date}">Löschen</button>
+        `;
+        container.appendChild(item);
+      });
+
+      // Event-Delegation für die Löschbuttons
+      container.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const dateToDelete = e.target.getAttribute('data-date');
+          deleteEntry(dateToDelete);
+        });
+      });
+    }
+
+    // Rendert das Diagramm neu
+    function renderChart() {
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      const canvas = document.getElementById('weightChart');
+      const ctx = canvas.getContext('2d');
+      const emptyState = document.getElementById('emptyState');
+
+      if (entries.length === 0) {
+        emptyState.classList.add('visible');
+        document.querySelector('#emptyState p').innerText = 'Keine Gewichtsdaten vorhanden';
+        document.querySelector('#emptyState .empty-sub').innerText = 'Tippe oben rechts auf das Menü, um dein Gewicht und Zielgewicht einzutragen.';
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+        return;
+      }
+
+      // Sortierung chronologisch
+      entries.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
+
+      // Filtern nach ausgewähltem Zeitraum & Festlegen des X-Achsen-Zeitraums (tStart bis tEnd)
+      const oneDay = 24 * 60 * 60 * 1000;
+      const { tStart, tEnd } = updatePeriodRange();
+
+      let filteredEntries = entries.filter(entry => {
+        const time = parseLocalDate(entry.date).getTime();
+        return time >= tStart && time <= tEnd;
+      });
+
+      if (filteredEntries.length === 0) {
+        emptyState.classList.add('visible');
+        document.querySelector('#emptyState p').innerText = 'Keine Daten in diesem Zeitraum';
+        document.querySelector('#emptyState .empty-sub').innerText = 'Trage weitere Gewichte für diesen Zeitraum ein oder wähle einen anderen Filter.';
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+        return;
+      }
+
+      emptyState.classList.remove('visible');
+
+      // Konvertierung der X-Werte relativ zu tStart
+      const dataPoints = filteredEntries.map(entry => {
+        const days = (parseLocalDate(entry.date).getTime() - tStart) / oneDay;
+        return { x: days, y: entry.weight };
+      });
+
+      const chartMaxDays = (tEnd - tStart) / oneDay;
+
+      const datasets = [];
+
+      // Gewichtsverlauf Dataset
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.clientHeight || 250);
+      gradient.addColorStop(0, 'rgba(182, 102, 255, 0.22)');
+      gradient.addColorStop(1, 'rgba(182, 102, 255, 0)');
+
+      datasets.push({
+        label: 'Gewicht',
+        data: dataPoints,
+        borderColor: '#b666ff',
+        borderWidth: 3,
+        pointBackgroundColor: '#b666ff',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: true,
+        backgroundColor: gradient,
+        tension: filteredEntries.length === 1 ? 0 : 0.35, // Keine Kurvenspannung bei nur einem Punkt
+        spanGaps: true
+      });
+
+      // Zielgewicht-Linie Dataset (horizontal)
+      if (targetWeight !== null) {
+        datasets.push({
+          label: 'Ziel',
+          data: [
+            { x: 0, y: targetWeight },
+            { x: chartMaxDays, y: targetWeight }
+          ],
+          borderColor: '#3b82f6',
+          borderWidth: 1.5,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          pointHitRadius: 0,
+          fill: false
+        });
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(8, 8, 8, 0.95)',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: 'rgba(255, 255, 255, 0.08)',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 12,
+              displayColors: false,
+              callbacks: {
+                title: function(context) {
+                  const val = context[0].raw.x;
+                  // +4 Stunden als DST-Puffer
+                  const dateObj = new Date(tStart + val * oneDay + 4 * 60 * 60 * 1000);
+                  return formatDateString(dateObj);
+                },
+                label: function(context) {
+                  // Unterscheidung zwischen Gewichtsverlauf und Zielgewicht
+                  if (context.datasetIndex === 1 && targetWeight !== null) {
+                    return `Zielgewicht: ${context.raw.y.toFixed(1)} kg`;
+                  }
+                  return `Gewicht: ${context.raw.y.toFixed(1)} kg`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              min: 0,
+              max: chartMaxDays,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.03)',
+                borderColor: 'rgba(255, 255, 255, 0.05)',
+                drawBorder: false
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.4)',
+                font: { size: 10 },
+                stepSize: filteredEntries.length === 1 ? 1 : undefined,
+                callback: function(value) {
+                  // +4 Stunden als DST-Puffer
+                  const dateObj = new Date(tStart + value * oneDay + 4 * 60 * 60 * 1000);
+                  // Zeige Tag und Monat an (z. B. 08.06.)
+                  const day = String(dateObj.getDate()).padStart(2, '0');
+                  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                  return `${day}.${month}.`;
+                }
+              }
+            },
+            y: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.03)',
+                borderColor: 'rgba(255, 255, 255, 0.05)',
+                drawBorder: false
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.4)',
+                font: { size: 10 },
+                callback: function(value) {
+                  return `${value} kg`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 3. EVENT-HANDLING & DATA-MUTATION
+
+    // Hinzufügen / Überschreiben eines Eintrags
+    document.getElementById('weightForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const dateVal = document.getElementById('inputDate').value;
+      const weightVal = parseFloat(document.getElementById('inputWeight').value);
+
+      if (!dateVal || isNaN(weightVal)) return;
+
+      if (weightVal < 1 || weightVal > 500) {
+        alert("Bitte gib ein Gewicht zwischen 1 und 500 kg ein.");
+        return;
+      }
+
+      const existingIndex = entries.findIndex(item => item.date === dateVal);
+      if (existingIndex !== -1) {
+        // Überschreiben des Gewichts am gleichen Tag
+        entries[existingIndex].weight = weightVal;
+      } else {
+        // Neuen Eintrag hinzufügen
+        entries.push({ date: dateVal, weight: weightVal });
+      }
+
+      // Speichern und aktualisieren
+      localStorage.setItem('weight_tracker_data', JSON.stringify(entries));
+      
+      // Formular zurücksetzen, Defaults setzen (heutiges Datum und letztes Gewicht)
+      setFormDefaults();
+
+      updateKPIs();
+      updateHistoryList();
+      renderChart();
+
+    });
+
+    // Löschen eines Eintrags
+    function deleteEntry(dateStr) {
+      entries = entries.filter(item => item.date !== dateStr);
+      localStorage.setItem('weight_tracker_data', JSON.stringify(entries));
+      
+      updateKPIs();
+      updateHistoryList();
+      setFormDefaults();
+      renderChart();
+
+    }
+
+    // Änderung des Zielgewichts
+    document.getElementById('inputGoal').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val) && val >= 1 && val <= 500) {
+        targetWeight = val;
+        localStorage.setItem('weight_tracker_target', val.toString());
+      } else {
+        targetWeight = null;
+        localStorage.removeItem('weight_tracker_target');
+      }
+      
+      updateKPIs();
+      renderChart();
+    });
+
+    // 4. SIDE-OVER MENÜSTEUERUNG
+    const menuToggle = document.getElementById('menuToggle');
+    const slideOver = document.getElementById('slideOver');
+    const backdrop = document.getElementById('backdrop');
+
+    function toggleMenu() {
+      const isOpen = slideOver.classList.contains('open');
+      if (isOpen) {
+        slideOver.classList.remove('open');
+        backdrop.classList.remove('open');
+        menuToggle.classList.remove('open');
+      } else {
+        slideOver.classList.add('open');
+        backdrop.classList.add('open');
+        menuToggle.classList.add('open');
+      }
+    }
+
+    menuToggle.addEventListener('click', toggleMenu);
+    backdrop.addEventListener('click', toggleMenu);
+
+    // 5. MINI EXPORT & IMPORT STEUERUNG
+
+    // Daten exportieren (JSON Download)
+    document.getElementById('btnExport').addEventListener('click', () => {
+      if (entries.length === 0 && targetWeight === null) {
+        alert('Keine Daten zum Exportieren vorhanden.');
+        return;
+      }
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+        entries: entries,
+        targetWeight: targetWeight
+      }, null, 2));
+
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "gewicht_daten.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    });
+
+    // Import über Klick auslösen
+    document.getElementById('btnImport').addEventListener('click', () => {
+      document.getElementById('fileImport').click();
+    });
+
+    // Datei einlesen und validieren
+    document.getElementById('fileImport').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          if (imported && Array.isArray(imported.entries)) {
+            // Validierung der Struktur (inklusive YYYY-MM-DD Datumsformat)
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            const validEntries = imported.entries.filter(item => {
+              return item.date && typeof item.date === 'string' && dateRegex.test(item.date) &&
+                     item.weight && !isNaN(parseFloat(item.weight));
+            }).map(item => ({
+              date: item.date,
+              weight: parseFloat(item.weight)
+            }));
+
+            entries = validEntries;
+            localStorage.setItem('weight_tracker_data', JSON.stringify(entries));
+
+            if (imported.targetWeight !== undefined) {
+              targetWeight = imported.targetWeight ? parseFloat(imported.targetWeight) : null;
+              if (targetWeight) {
+                localStorage.setItem('weight_tracker_target', targetWeight.toString());
+                document.getElementById('inputGoal').value = targetWeight;
+              } else {
+                localStorage.removeItem('weight_tracker_target');
+                document.getElementById('inputGoal').value = '';
+              }
+            }
+
+            // Alles neu rendern
+            updateKPIs();
+            updateHistoryList();
+            setFormDefaults();
+            renderChart();
+            alert('Daten erfolgreich importiert!');
+
+          } else {
+            alert('Ungültiges Dateiformat. Import fehlgeschlagen.');
+          }
+        } catch (err) {
+          alert('Fehler beim Lesen der JSON-Datei.');
+        }
+        // Dateiauswahl zurücksetzen
+        e.target.value = '';
+      };
+      reader.readAsText(file);
+    });
+
+    // Filter-Segment Event-Listener
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        activeFilter = e.target.getAttribute('data-days');
+        
+        // Zurücksetzen des Navigations-Referenzdatums auf heute
+        currentViewDate = new Date();
+        
+        renderChart();
+      });
+    });
+
+    // Zeitraum-Navigation (vor/zurück wischen) Event-Listener
+    document.getElementById('btnPrevPeriod').addEventListener('click', () => {
+      shiftPeriod(-1);
+    });
+
+    document.getElementById('btnNextPeriod').addEventListener('click', () => {
+      shiftPeriod(1);
+    });
+
+    function shiftPeriod(direction) {
+      if (activeFilter === '7') {
+        currentViewDate.setDate(currentViewDate.getDate() + direction * 7);
+      } else if (activeFilter === '30') {
+        currentViewDate.setMonth(currentViewDate.getMonth() + direction);
+      } else if (activeFilter === '365') {
+        currentViewDate.setFullYear(currentViewDate.getFullYear() + direction);
+      }
+      renderChart();
+    }
+
+    // Helper: Datum anpassen (+/- Tage)
+    function adjustDate(days) {
+      const dateInput = document.getElementById('inputDate');
+      if (!dateInput.value) return;
+      const currentDate = parseLocalDate(dateInput.value);
+      currentDate.setDate(currentDate.getDate() + days);
+      
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      
+      dateInput.value = `${year}-${month}-${day}`;
+    }
+
+    // Datumstasten Event-Listener
+    document.getElementById('btnPrevDay').addEventListener('click', () => adjustDate(-1));
+    document.getElementById('btnNextDay').addEventListener('click', () => adjustDate(1));
+
+
+    // 6. INITIALER SEITENSTART
+
+    setFormDefaults();
+    if (targetWeight !== null) {
+      document.getElementById('inputGoal').value = targetWeight;
+    }
+    updateKPIs();
+    updateHistoryList();
+    renderChart();
+  </script>
+</body>
+</html>
